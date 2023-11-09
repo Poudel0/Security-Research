@@ -1,7 +1,224 @@
 # Understanding fixed point Arithmetic in solidity with Solady and ABDK libraries
 
 #### Overview
+Numbers, something as simple as 1, 2, or 3, can become quite complex as their use and complexity grow. In the world of programming, integers, whole numbers, fractions, decimals, and even floats and doubles are used to represent these numbers. However, in Solidity and the Ethereum Virtual Machine (EVM), there is a fundamental difference—there's essentially one set of numbers: integers. These integers come in two flavors: signed and unsigned, with different bit lengths such as uint8, int64, and uint256. Despite the variations, they all boil down to integers.
+
+But what about those numbers like 1.5 liters of soda or a $9.99 for pair of shoes on sale? Are they the same, and how are they represented in EVM? How do we work with them, especially when Solidity(& EVM) doesn't natively support them? Let's explore the fixed-point numbers and libraries in Solidity.
+
+
 #### Prerequisites
-#### FLoatingPoints vs Fixed Points
-####  Functions Overview
-#### FUnctions Workings
+To fully grasp the concepts discussed in this article, it's essential to have some basic knowledge in the following areas:
+1. Solidity basics and syntax.
+2. Yul (a brief understanding).
+  <!--@todo Brief info in a sentence or two  -->
+
+#### FLoating Points to Fixed-Points
+The decimal numbers we encounter in our daily lives are typically referred to as floating-point numbers. They are called "floating" because the position of the decimal point can float around the number, indicating the value and its representation. In the world of computers, they are represented in a specific way. Consider the number 3.1415, where the position of the decimal point indicates that 3 is the integer part, and 1415 are the fractional parts.
+
+To represent such numbers in binary, we follow these steps:
+- Divide the integer part of the number by the base of the new number system:
+  ![Integer Part](image.png)
+- Multiply the fractional part of the number by the base of the new number system:
+  ![Fractional Part](image-1.png)
+
+the result of the conversion was:
+
+3.1415<sub>10</sub>= 11.0010010000<sub>2</sub> 
+However due to lack of native support for floating point numbers in the EVM, different technique is applied by thirdparty libraries to mitigate this problem,giving rise to Fixed Point Numbers                                                             
+
+Lets take an uint8 to represent. It can represent numbers from
+| 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |  
+|---|---|---|---|---|---|---|---|
+|---|---|---|to|---|---|---|---|
+| 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 |  
+
+i.e 0 to 2<sup>8</sup> -1 = 255
+
+Now to represent the decimal portion, We need to divide the bits  into 2 categories. One for integer and other for fractional part.                                             
+
+| 0 | 0 | 0 | 0 | . | 0 | 0 | 0 | 0 |                                   
+|---|---|---|---|---|---|---|---|---|
+|2<sup>3</sup>|2<sup>2</sup>|2<sup>1</sup>|2<sup>0</sup>|    |2<sup>-1</sup>|2<sup>-2</sup>|2<sup>-3</sup>|2<sup>-4</sup>|
+
+
+
+Now we have basically set apart 4 bits in the data type to be set as precision for the number.  It can represent from 0 to 
+
+| 1 | 1 | 1 | 1 | . | 1 | 1 | 1 | 1 |  
+|---|---|---|---|---|---|---|---|---|   
+
+equivalent to 15.9375.
+
+This concept of representation is used to overcome the inherent lack of floating points in the EVM. We assign the presicion factor for certain values that needs to be represented in fractional terms. Example: 1e18 is the precision taken for native currency of Ethereum. Here the smallest vaalue is designated as 1 Wei. 
+i.e `1e18 Wei = 1 eth`
+
+Fixed-point arithmetic is useful when dealing with fractional numbers in Solidity. It is used to represent decimal numbers with a fixed number of digits after the decimal point. This is particularly useful in financial applications, where precision is important.
+
+For example, if you are building a decentralized application that involves currency exchange, you might want to use fixed-point arithmetic to ensure that the exchange rates are accurate and precise.
+
+Another use case for fixed-point arithmetic is when you need to perform calculations that involve fractional numbers, such as interest rates, percentages, or ratios.
+
+
+
+####  Library Overview: Solady
+We will be looking at the following library :[FIxedPointMathLib](https://github.com/Vectorized/solady/blob/main/src/utils/FixedPointMathLib.sol#L46-L107Make)
+The functions in question are the following four: 
+- Multiply
+- Multiply rounding Up
+- Divide
+- Divide rounding Up
+
+
+
+We can vaugely divide the portion of the library into the following parts:
+1. Precision / Scale Factor
+```solidity
+    uint256 internal constant WAD = 1e18;
+```
+The number of bits that will represent the fractional portion.
+
+2. Function definition
+```solidity
+    function mulWad(uint256 x, uint256 y) internal pure returns (uint256 z) 
+    //
+    function mulWadUp(uint256 x, uint256 y) internal pure returns (uint256 z) 
+    //
+    function divWad(uint256 x, uint256 y) internal pure returns (uint256 z) 
+    //
+    function divWadUp(uint256 x, uint256 y) internal pure returns (uint256 z) 
+
+```
+
+3. Overflow checks
+```solidity
+ if iszero(mul(y, iszero(mul(WAD, gt(x, div(not(0), WAD)))))) {
+                mstore(0x00, 0x7c5f487d) // `DivWadFailed()`.
+                revert(0x1c, 0x04)
+            }
+```
+
+4.  Function Logic
+```solidity
+  function mulWad(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        assembly {
+            if mul(y, gt(x, div(not(0), y))) {
+                mstore(0x00, 0xbac65e5b) 
+                revert(0x1c, 0x04)
+            }
+            z := div(mul(x, y), WAD)       // Like this line
+        }
+    }
+```
+
+
+
+#### Functions Workings
+
+We now know what the precision  factor are. 
+Lets tackle the Overflow check. How does it achieve that? The code snippet in question is:
+
+
+1. 
+```solidity
+  function mulWad(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        assembly {
+            // Equivalent to `require(y == 0 || x <= type(uint256).max / y)`.
+            if mul(y, gt(x, div(not(0), y))) {
+                mstore(0x00, 0xbac65e5b) // `MulWadFailed()`.
+                revert(0x1c, 0x04)
+            }
+            z := div(mul(x, y), WAD)
+        }
+    }
+```
+
+`div(not(0), y)`  is equivalent to `type(uint256).max / y`. This part calculates the maximum value that a uint256 can hold (which is type(uint256).max) divided by y. `gt(x, ...)` compares the value of x with the result from the previous step. It checks if x is greater than or equal to the maximum value that a uint256 can hold divided by y.
+The entire expression inside if is multiplied by y. If x is greater than or equal to the maximum possible value that a uint256 can hold divided by y, then the result of this multiplication would be greater than or equal to y. This is where the check for overflow occurs.
+
+if statement: If the result of the multiplication is greater than or equal to y, it means that the calculation would result in an overflow, and the require statement would be triggered.
+
+The function's meant to perform a fixed-point multiplication (x * y) and then divide the result by WAD, effectively scaling down the result. The "rounded down" means that the division result is truncated, and any fractional part is discarded.
+`z := div(mul(x, y), WAD)`: This line computes the result of x * y and then divides it by WAD. The division operation truncates any fractional part, effectively implementing fixed-point arithmetic. The result is stored in the variable z.
+
+
+2. 
+```solidity
+function mulWadUp(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        /// @solidity memory-safe-assembly
+        assembly {
+            // Equivalent to `require(y == 0 || x <= type(uint256).max / y)`.
+            if mul(y, gt(x, div(not(0), y))) {
+                mstore(0x00, 0xbac65e5b) // `MulWadFailed()`.
+                revert(0x1c, 0x04)
+            }
+            z := add(iszero(iszero(mod(mul(x, y), WAD))), div(mul(x, y), WAD))
+        }
+    }
+```
+
+
+
+
+
+
+`z := add(iszero(iszero(mod(mul(x, y), WAD)), div(mul(x, y), WAD))`: This line computes the result of x * y, then takes the modulo (mod) of that result with WAD. The modulo operation calculates the remainder when dividing by WAD, effectively capturing the fractional part of the result.
+
+iszero(iszero(...)) ensures that any remainder (fractional part) is not equal to zero. If there's a fractional part, the result is adjusted upward to the nearest integer using the add function.
+
+div(mul(x, y), WAD) calculates the integer part of the result, effectively implementing fixed-point arithmetic.
+
+3. 
+```solidity
+function divWad(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        /// @solidity memory-safe-assembly
+        assembly {
+            // Equivalent to `require(y != 0 && (WAD == 0 || x <= type(uint256).max / WAD))`.
+            if iszero(mul(y, iszero(mul(WAD, gt(x, div(not(0), WAD)))))) {
+                mstore(0x00, 0x7c5f487d) // `DivWadFailed()`.
+                revert(0x1c, 0x04)
+            }
+            z := div(mul(x, WAD), y)
+        }
+    }
+
+```
+
+It is meant to perform a fixed-point multiplication of x and WAD, followed by a division by y, rounding the result down to the nearest integer.
+
+if iszero(mul(y, iszero(mul(WAD, gt(x, div(not(0), WAD)))))): This line performs a check to prevent division by zero and overflow during the multiplication of WAD and x. It ensures that both y is not zero and that the multiplication does not exceed the maximum value that a uint256 can hold. If the check fails (i.e., division by zero or overflow would occur), the function reverts, indicating a failed division operation.
+
+z := div(mul(x, WAD), y): This line computes the result of x * WAD and then divides it by y. The division operation rounds the result down to the nearest integer.
+
+
+4. 
+```solidity
+ function divWadUp(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        /// @solidity memory-safe-assembly
+        assembly {
+            // Equivalent to `require(y != 0 && (WAD == 0 || x <= type(uint256).max / WAD))`.
+            if iszero(mul(y, iszero(mul(WAD, gt(x, div(not(0), WAD)))))) {
+                mstore(0x00, 0x7c5f487d) // `DivWadFailed()`.
+                revert(0x1c, 0x04)
+            }
+            z := add(iszero(iszero(mod(mul(x, WAD), y))), div(mul(x, WAD), y))
+        }
+    }
+```
+
+
+if iszero(mul(y, iszero(mul(WAD, gt(x, div(not(0), WAD)))))): This line performs a check to prevent division by zero and overflow during the multiplication of WAD and x. It ensures that both y is not zero and that the multiplication does not exceed the maximum value that a uint256 can hold. If the check fails (i.e., division by zero or overflow would occur), the function reverts, indicating a failed division operation.
+
+`z := add(iszero(iszero(mod(mul(x, WAD), y)), div(mul(x, WAD), y))`: This line computes the result of x * WAD, then takes the modulo (mod) of that result with y. The modulo operation calculates the remainder when dividing by y, effectively capturing the fractional part of the result.
+
+iszero(iszero(...)) ensures that any remainder (fractional part) is not equal to zero. If there's a fractional part, the result is adjusted upward to the nearest integer using the add function.
+
+div(mul(x, WAD), y) calculates the integer part of the result, effectively implementing fixed-point arithmetic.
+
+
+
+
+
+
+
+<!-- @todo -->
+
