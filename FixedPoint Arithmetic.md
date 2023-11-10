@@ -17,12 +17,15 @@ The decimal numbers we encounter in our daily lives are most prominiently repses
 Consider the number "π" (Pi)  `3.1415`, where the position of the decimal point indicates that 3 is the integer part, and 1415 are the fractional parts. The rest of decimals are truncated.
 
 To represent such numbers in binary, we follow these steps:
+
 - Divide the integer part of the number by the base of the new number system:
+<br>
 ![Integer Part](https://raw.githubusercontent.com/Poudel0/Security-Research/main/image.png)
-
+<br>
 - Multiply the fractional part of the number by the base of the new number system:
+<br>
 ![Fractional Part](https://raw.githubusercontent.com/Poudel0/Security-Research/main/image-1.png)
-
+<br>
 Now, combine both parts, as the result, the conversion becomes:
 
 3.1415<sub>10</sub>= 11.0010010000<sub>2</sub> 
