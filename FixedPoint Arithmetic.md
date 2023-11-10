@@ -18,14 +18,11 @@ Consider the number "π" (Pi)  `3.1415`, where the position of the decimal point
 
 To represent such numbers in binary, we follow these steps:
 - Divide the integer part of the number by the base of the new number system:
-<br>
-  ![Integer Part](https://github.com/Poudel0/Security-Research/blob/main/image.png)
-<br>
+![Integer Part](https://raw.githubusercontent.com/Poudel0/Security-Research/main/image.png)
 
 - Multiply the fractional part of the number by the base of the new number system:
-<br>
-  ![Fractional Part](https://github.com/Poudel0/Security-Research/blob/main/image-1.png)
-<br>
+![Fractional Part](https://raw.githubusercontent.com/Poudel0/Security-Research/main/image-1.png)
+
 Now, combine both parts, as the result, the conversion becomes:
 
 3.1415<sub>10</sub>= 11.0010010000<sub>2</sub> 
